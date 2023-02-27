@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { primsaErrorHandling } from 'src/prisma/exception';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BookmarkDto, EditBookmarkDto } from './dto';
@@ -18,28 +14,34 @@ export class BookmarkService {
   }
 
   async createBookmark(userId: number, dto: BookmarkDto) {
-    const booking = await this.prisma.bookmark.create({
-      data: {
+    var bookmark = await this.prisma.bookmark.findFirst({
+      where: {
         userId: userId,
         title: dto.title,
         description: dto.description,
         link: dto.link,
       },
     });
-    return booking;
+    if (!bookmark) {
+      bookmark = await this.prisma.bookmark.create({
+        data: {
+          userId: userId,
+          title: dto.title,
+          description: dto.description,
+          link: dto.link,
+        },
+      });
+    }
+    return bookmark;
   }
 
-  async getBookmarkById(userId: number, bookingId: number) {
+  async getBookmarkById(userId: number, bookmarkId: number) {
     try {
-      const booking = await this.prisma.bookmark.findUniqueOrThrow({
-        where: { id: bookingId },
+      const bookmark = await this.prisma.bookmark.findFirstOrThrow({
+        where: { id: bookmarkId, userId: userId },
       });
 
-      if (booking.userId != userId) {
-        throw new ForbiddenException();
-      }
-
-      return booking;
+      return bookmark;
     } catch (error) {
       primsaErrorHandling(error);
     }
@@ -47,36 +49,36 @@ export class BookmarkService {
 
   async editBookmarkById(
     userId: number,
-    bookingId: number,
+    bookmarkId: number,
     dto: EditBookmarkDto,
   ) {
     try {
-      let booking = await this.prisma.bookmark.findFirst({
-        where: { id: bookingId, userId: userId },
+      await this.prisma.bookmark.findFirstOrThrow({
+        where: { id: bookmarkId, userId: userId },
       });
 
-      booking = await this.prisma.bookmark.update({
-        where: { id: bookingId },
+      const bookmark = await this.prisma.bookmark.update({
+        where: { id: bookmarkId },
         data: { ...dto },
       });
 
-      return booking;
+      return bookmark;
     } catch (error) {
       primsaErrorHandling(error);
     }
   }
 
-  async deleteBookmarkById(userIds: number, bookingId: number) {
-    const booking = await this.prisma.bookmark.findFirst({
-      where: { id: bookingId, userId: userIds },
-    });
+  async deleteBookmarkById(userIds: number, bookmarkId: number) {
+    try {
+      await this.prisma.bookmark.findFirstOrThrow({
+        where: { id: bookmarkId, userId: userIds },
+      });
 
-    if (!booking) {
-      throw new BadRequestException('Booking Does Not Exists');
+      await this.prisma.bookmark.delete({
+        where: { id: bookmarkId },
+      });
+    } catch (error) {
+      primsaErrorHandling(error);
     }
-
-    await this.prisma.bookmark.delete({
-      where: { id: bookingId },
-    });
   }
 }
